@@ -6,6 +6,7 @@ cfg = CfgNode()
 cfg.root_dir = ""
 cfg.img_folder = "C:\\Users\\omkar\\Desktop\\fakenews\\Images"
 cfg.info_file = "C:\\Users\\omkar\\Desktop\\fakenews\\PrideMM.csv"
+cfg.pickle_file = "C:\\Users\\omkar\\Desktop\\fakenews\\features.pkl"
 cfg.checkpoint_path = os.path.join(cfg.root_dir, "checkpoints")
 cfg.checkpoint_file = os.path.join(cfg.checkpoint_path, "model.ckpt")
 
