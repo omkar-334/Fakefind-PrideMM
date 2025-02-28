@@ -46,41 +46,30 @@ class Trainer:
     def train_epoch(self, epoch):
         self.model.train()
         total_loss = 0
-        total_batches = 0
-
         pbar = tqdm(self.train_loader, desc=f"Epoch {epoch + 1}/{self.num_epochs}")
 
-        for main_texts, texts, images, labels in pbar:
-            # if torch.cuda.is_available():
-            #     torch.cuda.empty_cache())
-            main_texts = main_texts.to(self.device, non_blocking=True)
-            texts = texts.to(self.device, non_blocking=True)
-            images = images.to(self.device, non_blocking=True)
-            # print(images.shape)
-            images = images.squeeze(1)  # Removes the dimension with size 1
-            labels = labels.to(self.device, non_blocking=True)
-
-            self.optimizer.zero_grad(set_to_none=True)
+        for batch_idx, (main_texts, texts, images, labels) in enumerate(pbar):
+            main_texts, texts, images, labels = (
+                main_texts.to(self.device, non_blocking=True),
+                texts.to(self.device, non_blocking=True),
+                images.squeeze(1).to(self.device, non_blocking=True),  # Remove unnecessary dimension
+                labels.to(self.device, non_blocking=True),
+            )
 
             self.optimizer.zero_grad()
-
-            # Forward pass
             outputs = self.model(main_texts, texts, images)
             loss = self.criterion(outputs, labels)
 
             # Backpropagation
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)  # Prevent exploding gradients
             self.optimizer.step()
 
             total_loss += loss.item()
-            total_batches += 1
             pbar.set_postfix(loss=f"{loss.item():.4f}")
 
-            del main_texts, texts, images, labels, outputs, loss
-            if total_batches % 10 == 0:
+            if batch_idx % 10 == 0:  # Free memory every 10 batches
                 self.clear_memory()
-
-        # self.scheduler.step()
 
         return total_loss / len(self.train_loader)
 
@@ -91,27 +80,29 @@ class Trainer:
         all_preds, all_labels = [], []
 
         for main_texts, texts, images, labels in self.val_loader:
-            main_texts = main_texts.to(self.device, non_blocking=True)
-            texts = texts.to(self.device, non_blocking=True)
-            images = images.to(self.device, non_blocking=True)
-            images = images.squeeze(1)  # Removes the dimension with size 1
-            labels = labels.to(self.device, non_blocking=True)
+            main_texts, texts, images, labels = (
+                main_texts.to(self.device, non_blocking=True),
+                texts.to(self.device, non_blocking=True),
+                images.squeeze(1).to(self.device, non_blocking=True),
+                labels.to(self.device, non_blocking=True),
+            )
 
             outputs = self.model(main_texts, texts, images)
             loss = self.criterion(outputs, labels)
-
             total_loss += loss.item() * labels.size(0)
+
             preds = torch.argmax(outputs, dim=1)
-            all_preds.extend(preds.cpu().numpy())
-            all_labels.extend(labels.cpu().numpy())
+            all_preds.append(preds)
+            all_labels.append(labels)
 
-            del main_texts, texts, images, labels, outputs, loss, preds
-
-        self.clear_memory()
+        # Concatenate predictions & labels to avoid excessive `.cpu().numpy()` calls
+        all_preds = torch.cat(all_preds).cpu().numpy()
+        all_labels = torch.cat(all_labels).cpu().numpy()
 
         avg_loss = total_loss / len(self.val_loader.dataset)
         metrics = self.calculate_metrics(all_preds, all_labels)
 
+        self.clear_memory()
         return avg_loss, metrics
 
     @staticmethod
@@ -129,7 +120,6 @@ class Trainer:
         print("-" * 50)
 
     def train(self):
-        # try:
         for epoch in range(self.num_epochs):
             train_loss = self.train_epoch(epoch)
             val_loss, val_metrics = self.validate()
@@ -140,14 +130,6 @@ class Trainer:
             if val_loss < self.best_val_loss:
                 self.best_val_loss = val_loss
                 self.best_model_state = {k: v.cpu() for k, v in self.model.state_dict().items()}
-
-                # if torch.cuda.is_available():
-                #     print(f"GPU Memory allocated: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
-
-        # except Exception as e:
-        #     print(f"Training interrupted: {str(e)}")
-        #     if self.best_model_state is not None:
-        #         torch.save(self.best_model_state, "interrupted_model.pt")
 
     def test(self):
         if self.best_model_state is not None:
