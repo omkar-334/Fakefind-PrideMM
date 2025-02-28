@@ -128,6 +128,6 @@ def collate_fn(batch):
 
 
 def load_dataset(cfg, split):
-    dataset = Dataset(cfg=cfg, split=split, label=cfg.label)
+    dataset = Dataset(cfg=cfg, split=split, label=cfg.label, dataset=cfg.dataset_name)
 
     return dataset

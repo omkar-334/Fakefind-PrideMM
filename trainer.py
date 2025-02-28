@@ -27,12 +27,12 @@ class Trainer:
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.test_loader = test_loader
-        self.num_epochs = 100
+        self.num_epochs = num_epochs
         self.lr = lr
 
+        # self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=1e-5)
         self.criterion = nn.CrossEntropyLoss().to(self.device)
-        self.scaler = amp.GradScaler("cuda") if self.device.type == "cuda" else None
 
         self.best_val_loss = float("inf")
         self.best_model_state = None
@@ -62,17 +62,15 @@ class Trainer:
 
             self.optimizer.zero_grad(set_to_none=True)
 
-            with amp.autocast(device_type=self.device.type, enabled=self.device.type == "cuda"):
-                outputs = self.model(main_texts, texts, images)
-                loss = self.criterion(outputs, labels)
+            self.optimizer.zero_grad()
 
-            if self.scaler:
-                self.scaler.scale(loss).backward()
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-            else:
-                loss.backward()
-                self.optimizer.step()
+            # Forward pass
+            outputs = self.model(main_texts, texts, images)
+            loss = self.criterion(outputs, labels)
+
+            # Backpropagation
+            loss.backward()
+            self.optimizer.step()
 
             total_loss += loss.item()
             total_batches += 1
@@ -99,12 +97,10 @@ class Trainer:
             images = images.squeeze(1)  # Removes the dimension with size 1
             labels = labels.to(self.device, non_blocking=True)
 
-            with amp.autocast(device_type=self.device.type, enabled=self.device.type == "cuda"):
-                outputs = self.model(main_texts, texts, images)
-                loss = self.criterion(outputs, labels)
+            outputs = self.model(main_texts, texts, images)
+            loss = self.criterion(outputs, labels)
 
             total_loss += loss.item() * labels.size(0)
-
             preds = torch.argmax(outputs, dim=1)
             all_preds.extend(preds.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())

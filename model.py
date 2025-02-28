@@ -13,7 +13,7 @@ class MLP(nn.Module):
         self.hidden_layer = nn.Linear(hidden_dim, hidden_dim)
         self.output_layer = nn.Linear(hidden_dim, num_classes)
         self.relu = nn.ReLU()
-        self.softmax = nn.Softmax(dim=1)  # Softmax for multi-class classification
+        # self.softmax = nn.Softmax(dim=1)  # Softmax for multi-class classification
         # self.sigmoid = nn.Sigmoid() # Sigmoid for binary classification
 
     def forward(self, x):
@@ -23,7 +23,7 @@ class MLP(nn.Module):
         x = self.relu(x)
         x = self.output_layer(x)
         # x = self.sigmoid(x)
-        x = self.softmax(x)
+        # x = self.softmax(x)
         return x
 
 
