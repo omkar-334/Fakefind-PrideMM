@@ -98,6 +98,9 @@ class HCAN(nn.Module):
         self.sentence_hierarchy = SentenceHierarchy(d_model, num_heads, num_blocks)
 
     def forward(self, documents):
+        print(documents.dim(), documents.shape)
+        if documents.dim() == 2:  # If shape is (batch_size, embedding_dim)
+            documents = documents.unsqueeze(1)
         if documents.dim() == 4:
             batch_size, num_sentences, num_words, embedding_dim = documents.shape
         elif documents.dim() == 3:

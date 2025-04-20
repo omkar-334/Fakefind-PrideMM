@@ -17,7 +17,7 @@ from tqdm import tqdm
 
 
 class Trainer:
-    def __init__(self, model, train_loader, val_loader, test_loader, lr=0.001, num_epochs=100):
+    def __init__(self, model, train_loader, val_loader, test_loader, lr=0.01, num_epochs=100):  # Increased learning rate
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = model.to(self.device)
 
@@ -30,8 +30,8 @@ class Trainer:
         self.num_epochs = num_epochs
         self.lr = lr
 
-        # self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=1e-5)
+        self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.1)  # Added learning rate scheduler
         self.criterion = nn.CrossEntropyLoss().to(self.device)
 
         self.best_val_loss = float("inf")
@@ -71,6 +71,7 @@ class Trainer:
             if batch_idx % 10 == 0:  # Free memory every 10 batches
                 self.clear_memory()
 
+        self.scheduler.step()  # Step the scheduler at the end of each epoch
         return total_loss / len(self.train_loader)
 
     @torch.no_grad()
@@ -112,20 +113,30 @@ class Trainer:
         return {"accuracy": accuracy, "precision": precision, "recall": recall, "f1": f1}
 
     @staticmethod
-    def print_metrics(metrics, phase):
-        print(f"\n{phase} Metrics:")
-        print("-" * 50)
+    def print_metrics(metrics, phase, epoch=None, train_loss=None, val_loss=None, filename="metrics_log.txt"):
+        log_entry = [f"\n{phase} Metrics:", "-" * 50]
+        if epoch is not None:
+            log_entry.append(f"Epoch: {epoch}")
+        if train_loss is not None:
+            log_entry.append(f"Train Loss: {train_loss:.4f}")
+        if val_loss is not None:
+            log_entry.append(f"Validation Loss: {val_loss:.4f}")
         for metric, value in metrics.items():
-            print(f"{metric.capitalize()}: {value:.4f}")
-        print("-" * 50)
+            log_entry.append(f"{metric.capitalize()}: {value:.4f}")
+        log_entry.append("-" * 50)
+
+        log_text = "\n".join(log_entry)
+        print(log_text)
+
+        with open(filename, "a") as f:
+            f.write(log_text + "\n")
 
     def train(self):
         for epoch in range(self.num_epochs):
             train_loss = self.train_epoch(epoch)
             val_loss, val_metrics = self.validate()
 
-            print(f"\nEpoch {epoch + 1}: Train Loss = {train_loss:.4f} | Val Loss = {val_loss:.4f}")
-            self.print_metrics(val_metrics, "Validation")
+            self.print_metrics(val_metrics, "Training", epoch=epoch, train_loss=train_loss, val_loss=val_loss)
 
             if val_loss < self.best_val_loss:
                 self.best_val_loss = val_loss
